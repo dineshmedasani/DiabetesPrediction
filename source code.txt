@@ -1,0 +1,312 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import xgboost as xgb
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+
+np.random.seed(42)
+
+stayed = {
+    'EmployeeID': range(1, 351),
+    'Age': np.random.randint(25, 65, 350),
+    'Salary': np.random.randint(30000, 150000, 350),
+    'Years_Experience': np.random.randint(1, 30, 350),
+    'Performance_Rating': np.random.uniform(3.0, 5.0, 350),
+    'Job_Satisfaction': np.random.randint(3, 5, 350),
+    'Work_Life_Balance': np.random.randint(3, 5, 350),
+    'Distance_from_Home': np.random.randint(2, 50, 350),
+    'Promotions_in_5_Years': np.random.randint(0, 5, 350),
+    'Years_at_Company': np.random.randint(1, 20, 350),
+    'Attrition': [0] * 350
+}
+
+left = {
+    'EmployeeID': range(351, 501),
+    'Age': np.random.randint(22, 55, 150),
+    'Salary': np.random.randint(25000, 80000, 150),
+    'Years_Experience': np.random.randint(0, 15, 150),
+    'Performance_Rating': np.random.uniform(1.5, 3.0, 150),
+    'Job_Satisfaction': np.random.randint(1, 3, 150),
+    'Work_Life_Balance': np.random.randint(1, 3, 150),
+    'Distance_from_Home': np.random.randint(10, 60, 150),
+    'Promotions_in_5_Years': np.random.randint(0, 2, 150),
+    'Years_at_Company': np.random.randint(0, 8, 150),
+    'Attrition': [1] * 150
+}
+
+df_stayed = pd.DataFrame(stayed)
+df_left = pd.DataFrame(left)
+df = pd.concat([df_stayed, df_left], ignore_index=True)
+df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+X = df.drop(['EmployeeID', 'Attrition'], axis=1)
+y = df['Attrition']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print("\n" + "=" * 100)
+print("👨‍💼 EMPLOYEE ATTRITION PREDICTION SYSTEM - INITIALIZING")
+print("=" * 100)
+print("\nTraining 4 classification models...\n")
+
+lr_model = LogisticRegression(random_state=42, max_iter=1000)
+lr_model.fit(X_train_scaled, y_train)
+print("✅ Logistic Regression trained")
+
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+rf_model.fit(X_train, y_train)
+print("✅ Random Forest trained")
+
+svm_model = SVC(kernel='rbf', probability=True, random_state=42)
+svm_model.fit(X_train_scaled, y_train)
+print("✅ Support Vector Machine trained")
+
+xgb_model = xgb.XGBClassifier(n_estimators=100, max_depth=5, random_state=42, eval_metric='logloss', scale_pos_weight=2.33)
+xgb_model.fit(X_train, y_train)
+print("✅ XGBoost trained")
+
+print("\n✅ All models ready!\n")
+
+def predict_attrition(employee_data):
+    employee_df = pd.DataFrame([employee_data])
+    employee_scaled = scaler.transform(employee_df)
+
+    predictions = {}
+
+    lr_pred = lr_model.predict(employee_scaled)[0]
+    lr_prob = lr_model.predict_proba(employee_scaled)[0][1]
+    predictions['Logistic Regression'] = (lr_pred, lr_prob)
+
+    rf_pred = rf_model.predict(employee_df)[0]
+    rf_prob = rf_model.predict_proba(employee_df)[0][1]
+    predictions['Random Forest'] = (rf_pred, rf_prob)
+
+    svm_pred = svm_model.predict(employee_scaled)[0]
+    svm_prob = svm_model.predict_proba(employee_scaled)[0][1]
+    predictions['SVM'] = (svm_pred, svm_prob)
+
+    xgb_pred = xgb_model.predict(employee_df)[0]
+    xgb_prob = xgb_model.predict_proba(employee_df)[0][1]
+    predictions['XGBoost'] = (xgb_pred, xgb_prob)
+
+    return predictions
+
+def get_valid_input(prompt, input_type, min_val=None, max_val=None):
+    while True:
+        try:
+            user_input = input(prompt).strip()
+
+            if input_type == 'float':
+                value = float(user_input)
+                if min_val and value < min_val:
+                    print(f"❌ Please enter a value >= {min_val}")
+                    continue
+                if max_val and value > max_val:
+                    print(f"❌ Please enter a value <= {max_val}")
+                    continue
+                return value
+
+            elif input_type == 'int':
+                value = int(user_input)
+                if min_val and value < min_val:
+                    print(f"❌ Please enter a value >= {min_val}")
+                    continue
+                if max_val and value > max_val:
+                    print(f"❌ Please enter a value <= {max_val}")
+                    continue
+                return value
+
+        except ValueError:
+            print(f"❌ Invalid input. Please enter a valid {input_type}.")
+
+def display_attrition_risk(employee_id, employee_name, employee_data, predictions):
+    print(f"\n\n{'=' * 100}")
+    print(f"👨‍💼 EMPLOYEE ATTRITION RISK ASSESSMENT")
+    print(f"{'=' * 100}\n")
+
+    print(f"Employee ID: {employee_id}")
+    print(f"Employee Name: {employee_name}")
+    print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    print("📊 EMPLOYEE PROFILE:")
+    print("-" * 100)
+    print(f"  Age: {employee_data['Age']} years")
+    print(f"  Salary: ₹{employee_data['Salary']:,} annually")
+    print(f"  Years of Experience: {employee_data['Years_Experience']} years")
+    print(f"  Performance Rating: {employee_data['Performance_Rating']:.2f}/5.0")
+    print(f"  Job Satisfaction: {employee_data['Job_Satisfaction']}/5")
+    print(f"  Work-Life Balance: {employee_data['Work_Life_Balance']}/5")
+    print(f"  Distance from Home: {employee_data['Distance_from_Home']} km")
+    print(f"  Promotions in 5 Years: {employee_data['Promotions_in_5_Years']}")
+    print(f"  Years at Company: {employee_data['Years_at_Company']} years")
+
+    print("\n🤖 MODEL PREDICTIONS:")
+    print("-" * 100)
+
+    attrition_count = 0
+    probabilities = []
+
+    for model_name, (pred, prob) in predictions.items():
+        status = "⚠️ LIKELY TO LEAVE" if pred == 1 else "✅ LIKELY TO STAY"
+        probabilities.append(prob)
+        if pred == 1:
+            attrition_count += 1
+        print(f"  {model_name:25} {status:25} Risk: {prob * 100:.2f}%")
+
+    avg_probability = np.mean(probabilities)
+
+    print(f"\n{'=' * 100}")
+    print(f"📊 ATTRITION RISK ASSESSMENT:")
+    print(f"{'=' * 100}")
+
+    if attrition_count >= 3:
+        final_assessment = "⚠️ HIGH ATTRITION RISK"
+        recommendation = "🔴 IMMEDIATE ACTION REQUIRED"
+    else:
+        final_assessment = "✅ LOW ATTRITION RISK"
+        recommendation = "🟢 EMPLOYEE LIKELY TO STAY"
+
+    print(f"  Assessment: {final_assessment}")
+    print(f"  Models Predicting Attrition: {attrition_count}/4")
+    print(f"  Average Attrition Risk: {avg_probability * 100:.2f}%")
+    print(f"  HR Action: {recommendation}")
+
+    print(f"\n⚠️ RISK FACTORS:")
+    print("-" * 100)
+
+    if avg_probability > 80:
+        risk_level = "🔴 CRITICAL"
+        action = "IMMEDIATE RETENTION INTERVIEW & OFFER REVIEW"
+    elif avg_probability > 60:
+        risk_level = "🟠 HIGH"
+        action = "URGENT - Schedule retention meeting"
+    elif avg_probability > 40:
+        risk_level = "🟡 MODERATE"
+        action = "MONITOR CLOSELY - Offer career development"
+    else:
+        risk_level = "🟢 LOW"
+        action = "MAINTAIN - Regular check-ins"
+
+    print(f"  Risk Level: {risk_level}")
+    print(f"  Recommended Action: {action}")
+
+    print(f"\n🔎 RISK INDICATORS:")
+    print("-" * 100)
+
+    if employee_data['Job_Satisfaction'] <= 2:
+        print(f"  ⚠️ Low Job Satisfaction ({employee_data['Job_Satisfaction']}/5)")
+
+    if employee_data['Work_Life_Balance'] <= 2:
+        print(f"  ⚠️ Poor Work-Life Balance ({employee_data['Work_Life_Balance']}/5)")
+
+    if employee_data['Performance_Rating'] <= 2.0:
+        print(f"  ⚠️ Low Performance Rating ({employee_data['Performance_Rating']:.1f}/5.0)")
+
+    if employee_data['Promotions_in_5_Years'] == 0:
+        print(f"  ⚠️ No Promotions in 5 Years")
+
+    if employee_data['Salary'] < 40000:
+        print(f"  ⚠️ Below-Market Salary (₹{employee_data['Salary']:,})")
+
+    if employee_data['Distance_from_Home'] > 30:
+        print(f"  ⚠️ Long Commute ({employee_data['Distance_from_Home']} km)")
+
+    if employee_data['Years_at_Company'] < 2:
+        print(f"  ⚠️ Relatively New Employee ({employee_data['Years_at_Company']} years)")
+
+    print(f"\n{'=' * 100}\n")
+
+    return {
+        'employee_id': employee_id,
+        'employee_name': employee_name,
+        'assessment': final_assessment,
+        'risk': risk_level,
+        'probability': avg_probability
+    }
+
+def main():
+    all_employees = []
+
+    while True:
+        print("\n" + "=" * 100)
+        print("👨‍💼 EMPLOYEE ATTRITION PREDICTION SYSTEM")
+        print("=" * 100)
+        print("\n📝 Enter Employee Details:\n")
+
+        employee_id = f"EMP{len(all_employees) + 1:05d}"
+        employee_name = input("👤 Employee Name: ").strip()
+
+        if not employee_name:
+            print("❌ Name cannot be empty!")
+            continue
+
+        age = get_valid_input("Age (20-70): ", 'int', min_val=20, max_val=70)
+        salary = get_valid_input("Annual Salary (₹): ", 'int', min_val=20000, max_val=500000)
+        experience = get_valid_input("Years of Experience: ", 'int', min_val=0, max_val=50)
+        performance = get_valid_input("Performance Rating (1.0-5.0): ", 'float', min_val=1.0, max_val=5.0)
+        job_satisfaction = get_valid_input("Job Satisfaction (1-5): ", 'int', min_val=1, max_val=5)
+        work_life = get_valid_input("Work-Life Balance (1-5): ", 'int', min_val=1, max_val=5)
+        distance = get_valid_input("Distance from Home (km): ", 'int', min_val=0, max_val=100)
+        promotions = get_valid_input("Promotions in 5 Years: ", 'int', min_val=0, max_val=10)
+        years_company = get_valid_input("Years at Company: ", 'int', min_val=0, max_val=40)
+
+        employee_data = {
+            'Age': age,
+            'Salary': salary,
+            'Years_Experience': experience,
+            'Performance_Rating': performance,
+            'Job_Satisfaction': job_satisfaction,
+            'Work_Life_Balance': work_life,
+            'Distance_from_Home': distance,
+            'Promotions_in_5_Years': promotions,
+            'Years_at_Company': years_company
+        }
+
+        print("\n⏳ Analyzing employee data...")
+        predictions = predict_attrition(employee_data)
+
+        result = display_attrition_risk(employee_id, employee_name, employee_data, predictions)
+        all_employees.append(result)
+
+        while True:
+            another = input("Analyze another employee? (Yes/No): ").strip().lower()
+            if another in ['yes', 'no', 'y', 'n']:
+                break
+
+        if another not in ['yes', 'y']:
+            print("\n" + "=" * 100)
+            print("📊 ATTRITION ANALYSIS SUMMARY")
+            print("=" * 100)
+            print(f"\nTotal Employees Analyzed: {len(all_employees)}\n")
+
+            at_risk = sum(1 for e in all_employees if "HIGH" in e['assessment'])
+            safe = len(all_employees) - at_risk
+
+            print(f"✅ Low Risk: {safe}")
+            print(f"⚠️ High Risk: {at_risk}")
+            print(f"📊 Attrition Risk Rate: {(at_risk/len(all_employees)*100):.1f}%\n")
+
+            print("Employee Analysis:")
+            print("-" * 100)
+            for i, e in enumerate(all_employees, 1):
+                print(f"{i}. {e['employee_id']:15} {e['employee_name']:20} {e['assessment']:25} {e['risk']}")
+
+            print("\n" + "=" * 100)
+            print("Thank you! Goodbye! 👋")
+            print("=" * 100 + "\n")
+
+            return all_employees
+
+if __name__ == "__main__":
+    employees = main()
